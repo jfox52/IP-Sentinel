@@ -59,6 +59,18 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
         elif self.path == '/trigger_report':
             # 另起后台进程执行战报生成
             subprocess.Popen(['bash', '/opt/ip_sentinel/core/tg_report.sh'])
+        elif self.path == '/trigger_log':
+            # 【新增升级】抓取最后15行日志并通过 TG 原路返回 (直接通过 bash -c 运行复合命令)
+            bash_cmd = """
+            source /opt/ip_sentinel/config.conf
+            LOG_DATA=$(tail -n 15 /opt/ip_sentinel/logs/sentinel.log)
+            NODE=$(hostname | cut -c 1-15)
+            curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+                -d "chat_id=${CHAT_ID}" \
+                -d "text=📄 **[${NODE}] 实时运行日志:**%0A\`\`\`log%0A${LOG_DATA}%0A\`\`\`" \
+                -d "parse_mode=Markdown"
+            """
+            subprocess.Popen(['bash', '-c', bash_cmd])
 
     def log_message(self, format, *args):
         # 关闭默认的控制台日志输出，保持后台清爽
