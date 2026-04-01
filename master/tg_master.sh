@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==========================================================
-# 脚本名称: tg_master.sh (Master 端调度枢纽 V1.2)
+# 脚本名称: tg_master.sh (Master 端调度枢纽 V1.2.1)
 # 核心功能: 监听 TG、操作 SQLite、Webhook 调度、僵尸节点清理
 # ==========================================================
 
@@ -63,9 +63,24 @@ while true; do
             # 2. 交互菜单与下发通道 (主控逻辑)
             # ==========================================
             case "$TEXT" in
-                "/start"|"/menu")
-                    BTNS="[[{\"text\":\"🖥️ 我的节点列表\",\"callback_data\":\"list_nodes\"}], [{\"text\":\"🚀 全节点一键维护\",\"callback_data\":\"all_run\"}]]"
+            "/start"|"/menu")
+                    # 【升级】新增 [🚀 全节点日报汇总] 按钮
+                    BTNS="[[{\"text\":\"🖥️ 我的节点列表\",\"callback_data\":\"list_nodes\"}], [{\"text\":\"🚀 全节点日报汇总\",\"callback_data\":\"all_reports\"}], [{\"text\":\"🛠️ 全节点一键维护\",\"callback_data\":\"all_run\"}]]"
                     send_ui "$CHAT_ID" "🛡️ **IP-Sentinel 司令部**\n欢迎回来，长官。请下达指令：" "$BTNS"
+                    ;;
+
+                "all_reports")
+                    # 【新增】遍历该用户下的所有节点，并发触发 report Webhook
+                    NODE_DATA=$(db_exec "SELECT node_name, agent_ip, agent_port FROM nodes WHERE chat_id='$CHAT_ID';")
+                    if [ -z "$NODE_DATA" ]; then
+                        send_msg "$CHAT_ID" "⚠️ 您名下暂无在线节点。"
+                    else
+                        send_msg "$CHAT_ID" "📢 **司令部指令下达：正在召唤所有哨兵回传简报...**"
+                        echo "$NODE_DATA" | while IFS='|' read -r NNAME AIP APORT; do
+                            # 挂入后台并发请求，防止节点过多时阻塞主循环
+                            curl -s -m 5 "http://${AIP}:${APORT}/trigger_report" > /dev/null &
+                        done
+                    fi
                     ;;
 
                 "list_nodes")
