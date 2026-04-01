@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ==========================================================
-# 脚本名称: updater.sh (IP-Sentinel 养料注入模块)
-# 核心功能: 定期静默从云端拉取最新的搜索词库与 UA 指纹池 (OTA更新)
+# 脚本名称: updater.sh (IP-Sentinel 养料注入与系统维护模块)
+# 核心功能: 定期静默更新热数据、清理瘦身日志文件
 # ==========================================================
 
 INSTALL_DIR="/opt/ip_sentinel"
@@ -16,7 +16,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 source "$CONFIG_FILE"
 
-# 2. 全局日志写入函数 (兼容统一格式)
+# 2. 全局日志写入函数
 log() {
     mkdir -p "${INSTALL_DIR}/logs"
     printf "[$(date '+%Y-%m-%d %H:%M:%S')] [%-5s] [%-7s] [%s] %s\n" "$2" "$1" "$REGION_CODE" "$3" >> "$LOG_FILE"
@@ -24,7 +24,7 @@ log() {
 
 log "Updater" "INFO " "========== 触发后台静默 OTA 热数据更新 =========="
 
-# 3. 容灾机制拉取 UA 池 (下载到临时文件，如果成功且不为空，再覆盖原文件)
+# 3. 容灾机制拉取 UA 池
 TMP_UA="/tmp/ip_sentinel_ua.txt"
 curl -sL "${REPO_RAW_URL}/data/user_agents.txt" -o "$TMP_UA"
 if [ -s "$TMP_UA" ]; then
@@ -46,4 +46,11 @@ else
     rm -f "$TMP_KW"
 fi
 
-log "Updater" "INFO " "========== OTA 养料注入流程结束 =========="
+# 5. 【升级点】日志防满瘦身机制 (保留最近 2000 行)
+if [ -f "$LOG_FILE" ]; then
+    tail -n 2000 "$LOG_FILE" > "${LOG_FILE}.tmp"
+    mv "${LOG_FILE}.tmp" "$LOG_FILE"
+    log "Updater" "INFO " "🧹 系统日志已完成定期清理瘦身 (保留最新 2000 行)"
+fi
+
+log "Updater" "INFO " "========== OTA 养料注入与系统维护结束 =========="
