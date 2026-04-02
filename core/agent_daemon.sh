@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # ==========================================================
-# 脚本名称: agent_daemon.sh (受控节点 Webhook 守护进程 V1.2)
-# 核心功能: 智能防打扰注册、进程防冲突自检、后台静默监听
+# 脚本名称: agent_daemon.sh (受控节点 Webhook 守护进程 V2.0)
+# 核心功能: 智能防打扰注册、进程自检、模块级路由分发(403拦截)
 # ==========================================================
 
 INSTALL_DIR="/opt/ip_sentinel"
 CONFIG_FILE="${INSTALL_DIR}/config.conf"
-IP_CACHE="${INSTALL_DIR}/core/.last_ip" # 【新增】本地 IP 状态缓存文件
+IP_CACHE="${INSTALL_DIR}/core/.last_ip"
 
 [ ! -f "$CONFIG_FILE" ] && exit 1
 source "$CONFIG_FILE"
@@ -20,9 +20,7 @@ AGENT_PORT=${AGENT_PORT:-9527}
 NODE_NAME=$(hostname | cut -c 1-15)
 
 # --- [重点升级 1: 守护进程防冲突自检] ---
-# 检查是否已经有 webhook 进程在监听当前端口，如果有，直接安静退出 (Cron 友好)
 if pgrep -f "webhook.py $AGENT_PORT" > /dev/null; then
-    # 保持静默，不输出多余日志，防止打扰系统的 syslog
     exit 0
 fi
 
@@ -44,36 +42,66 @@ if [ -n "$AGENT_IP" ]; then
             -d "parse_mode=Markdown" > /dev/null
         
         echo "✅ [Agent] 已向司令部发送接入申请，请在 Telegram 手机端完成授权！"
-        # 记录当前 IP 到缓存文件
         echo "$AGENT_IP" > "$IP_CACHE"
     else
         echo "ℹ️ [Agent] IP 未变动 ($AGENT_IP)，跳过重复注册申请。"
     fi
 fi
 
-# 3. 启动轻量级 Python3 Webhook 监听服务
+# 3. 启动轻量级 Python3 Webhook 监听服务 (带 403 权限校验路由)
 cat > "${INSTALL_DIR}/core/webhook.py" << 'EOF'
 import http.server
 import socketserver
 import subprocess
 import sys
+import os
 
 PORT = int(sys.argv[1])
 
 class AgentHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        # 统一返回成功，防止 Master 请求超时阻塞
-        self.send_response(200)
-        self.send_header("Content-type", "text/plain")
-        self.end_headers()
-        self.wfile.write(b"Agent Received Action\n")
-        
-        # 路由分发
-        if self.path == '/trigger_run':
-            subprocess.Popen(['bash', '/opt/ip_sentinel/core/mod_google.sh'])
+        # 路由 1: Google 区域纠偏 (含老版 run 指令兼容)
+        if self.path == '/trigger_google' or self.path == '/trigger_run':
+            if os.path.exists('/opt/ip_sentinel/core/mod_google.sh'):
+                self.send_response(200)
+                self.send_header("Content-type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"Action Accepted: mod_google\n")
+                subprocess.Popen(['bash', '/opt/ip_sentinel/core/mod_google.sh'])
+            else:
+                self.send_response(403)
+                self.send_header("Content-type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"403 Forbidden: Google Module Disabled\n")
+
+        # 路由 2: IP 信用净化
+        elif self.path == '/trigger_trust':
+            if os.path.exists('/opt/ip_sentinel/core/mod_trust.sh'):
+                self.send_response(200)
+                self.send_header("Content-type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"Action Accepted: mod_trust\n")
+                subprocess.Popen(['bash', '/opt/ip_sentinel/core/mod_trust.sh'])
+            else:
+                self.send_response(403)
+                self.send_header("Content-type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"403 Forbidden: Trust Module Disabled\n")
+
+        # 路由 3: 触发战报推送
         elif self.path == '/trigger_report':
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"Action Accepted: tg_report\n")
             subprocess.Popen(['bash', '/opt/ip_sentinel/core/tg_report.sh'])
+
+        # 路由 4: 抓取并回传实时日志
         elif self.path == '/trigger_log':
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"Action Accepted: fetch_log\n")
             bash_cmd = """
             source /opt/ip_sentinel/config.conf
             LOG_DATA=$(tail -n 15 /opt/ip_sentinel/logs/sentinel.log)
@@ -84,9 +112,12 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                 -d "parse_mode=Markdown"
             """
             subprocess.Popen(['bash', '-c', bash_cmd])
+            
+        else:
+            self.send_response(404)
+            self.end_headers()
 
     def log_message(self, format, *args):
-        # 关闭默认的控制台日志输出，保持后台清爽
         pass
 
 try:
@@ -98,10 +129,6 @@ EOF
 
 # --- [重点升级 3: 真正的静默后台启动] ---
 echo "🚀 [Agent] 正在后台启动 Webhook 监听服务 (端口: $AGENT_PORT)..."
-# 使用 nohup 和 & 将进程完全推入后台，不阻塞当前终端
 nohup python3 "${INSTALL_DIR}/core/webhook.py" "$AGENT_PORT" > /dev/null 2>&1 &
-
-# 尝试脱离终端会话控制 (忽略报错以兼容不同 shell 环境)
 disown 2>/dev/null || true
-
 echo "✅ [Agent] 守护进程启动完毕，可安全关闭终端。"
