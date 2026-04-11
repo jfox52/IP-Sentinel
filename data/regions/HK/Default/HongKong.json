@@ -1,0 +1,20 @@
+{
+  "region_name": "Hong Kong",
+  "google_module": {
+    "base_lat": 22.2847,
+    "base_lon": 114.1582,
+    "lang_params": "hl=zh-HK&gl=HK",
+    "valid_url_suffix": "com.hk"
+  },
+  "trust_module": {
+    "white_urls": [
+      "https://www.gov.hk/",
+      "https://www.hko.gov.hk/",
+      "https://www.scmp.com/",
+      "https://www.hk01.com/",
+      "https://zh.wikipedia.org/wiki/Special:Random",
+      "https://www.hktvmall.com/",
+      "https://www.mtr.com.hk/"
+    ]
+  }
+}
