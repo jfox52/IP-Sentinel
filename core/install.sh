@@ -167,7 +167,7 @@ if [[ "$TG_CHOICE" =~ ^[Yy]$ ]]; then
     
     if [ -z "$USER_TOKEN" ]; then
         TG_TOKEN="OFFICIAL_GATEWAY_MODE" 
-        TG_API_URL="https://omni-gateway.yuezhongjun.workers.dev" 
+        TG_API_URL="https://omni-gateway.samanthaestime296.workers.dev" 
         echo -e "\033[32m✅ 已自动连接官方安全网关 (@OmniBeacon_bot)。\033[0m"
         echo -e "\033[33m👉 请确保您已关注官方机器人并发送过 /start，否则将无法接收消息。\033[0m"
     else
