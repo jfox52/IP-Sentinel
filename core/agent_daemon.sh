@@ -127,8 +127,20 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
 
         # ================== 路由分发 (恢复为安全的精确匹配) ==================
         
+        # 路由 0: 全局统筹调度 (处理 /trigger_run 一键全节点维护)
+        if req_path == '/trigger_run':
+            if os.path.exists('/opt/ip_sentinel/core/runner.sh'):
+                self.send_response(200)
+                self.send_header("Content-type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"Action Accepted: runner\n")
+                subprocess.Popen(['bash', '/opt/ip_sentinel/core/runner.sh'])
+            else:
+                self.send_response(404)
+                self.end_headers()
+                
         # 路由 1: Google 区域纠偏
-        if req_path == '/trigger_google' or req_path == '/trigger_run':
+        elif req_path == '/trigger_google':
             if os.path.exists('/opt/ip_sentinel/core/mod_google.sh'):
                 self.send_response(200)
                 self.send_header("Content-type", "text/plain")
