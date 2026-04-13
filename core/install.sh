@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ==========================================================
-# 脚本名称: install.sh (IP-Sentinel 分布式边缘节点部署脚本 v3.2.3 - Global Nexus)
-# 核心功能: 区域选择、模块按需开启、官方机器人一键配置、平滑热更新
+# 脚本名称: install.sh (IP-Sentinel 分布式边缘节点部署脚本 v3.3.0 - OTA 活体引擎)
+# 核心功能: 区域选择、模块按需开启、官方机器人一键配置、平滑热更新、分频错峰调度
 # ==========================================================
 
 # 你的 GitHub 仓库 Raw 数据直链前缀
@@ -404,8 +404,11 @@ crontab -l 2>/dev/null | grep -v "ip_sentinel" > /tmp/cron_backup
 
 # 核心养护模块: 每 30 分钟触发一次
 echo "*/30 * * * * ${INSTALL_DIR}/core/runner.sh >/dev/null 2>&1" >> /tmp/cron_backup
-# 养料更新模块: 每周日凌晨 3 点静默去云端更新热数据
-echo "0 3 * * 0 ${INSTALL_DIR}/core/updater.sh >/dev/null 2>&1" >> /tmp/cron_backup
+# 养料更新模块: (v3.3.0升级) 每天凌晨 3 点触发，由中枢自动进行分频调度
+echo "0 3 * * * ${INSTALL_DIR}/core/updater.sh >/dev/null 2>&1" >> /tmp/cron_backup
+
+# [v3.3.0 新增] 初始化 UA 指纹库更新时间戳，确立 30 天滚动周期的计算锚点
+echo $(date +%s) > "${INSTALL_DIR}/core/.ua_last_update"
 
 # 如果配置了联控，启动 Webhook 与战报任务
 if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
@@ -440,7 +443,7 @@ if [[ -n "$TG_TOKEN" ]] && [[ -n "$CHAT_ID" ]]; then
             -d "text=✨ *IP-Sentinel 引擎热更新完成！*
 📍 节点：\`${NODE_NAME}\`
 🌐 IP：\`${BIND_IP}\`
-🚀 状态：v3.2.2 协议自适应与高精度探针已就绪" >/dev/null 2>&1
+🚀 状态：v3.3.0 OTA 动态活体养护引擎已部署" >/dev/null 2>&1
         echo -e "\033[32m✅ 升级成功通知已推送到您的 Telegram！\033[0m"
     else
         echo -e "\n📡 正在向指挥部发送注册暗号..."
