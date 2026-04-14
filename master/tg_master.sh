@@ -9,6 +9,10 @@ CONF="/opt/ip_sentinel_master/master.conf"
 [ ! -f "$CONF" ] && exit 1
 source "$CONF"
 
+# [v3.4.0 核心: 主控版本锚点与云通信地址]
+MASTER_VERSION="3.4.0"
+REPO_RAW_URL="https://raw.githubusercontent.com/hotyue/IP-Sentinel/main"
+
 OFFSET_FILE="${MASTER_DIR}/.tg_offset"
 [[ -f $OFFSET_FILE ]] || echo "0" > $OFFSET_FILE
 
@@ -117,7 +121,7 @@ while true; do
 
                 # 入库时追加 region 字段
                 db_exec "INSERT INTO nodes (chat_id, node_name, agent_ip, agent_port, last_seen, region) VALUES ('$CHAT_ID', '$NODE_NAME', '$AGENT_IP', '$AGENT_PORT', CURRENT_TIMESTAMP, '$AGENT_REGION') ON CONFLICT(chat_id, node_name) DO UPDATE SET agent_ip='$AGENT_IP', agent_port='$AGENT_PORT', last_seen=CURRENT_TIMESTAMP, region='$AGENT_REGION';"
-                send_msg "$CHAT_ID" "✅ 司令部已确认！节点接入成功: \`$NODE_NAME\` ($AGENT_IP:$AGENT_PORT)"
+                send_msg "$CHAT_ID" "✅ **司令部确认 (v${MASTER_VERSION})**\n节点接入成功: \`$NODE_NAME\`\n地址: \`$AGENT_IP:$AGENT_PORT\`"
                 
                 # ================== [v3.1.3 丝滑连招: 直接呼出全球大区雷达] ==================
                 REGION_DATA=$(db_exec "SELECT region, COUNT(*) FROM nodes WHERE chat_id='$CHAT_ID' GROUP BY region;")
@@ -146,8 +150,16 @@ while true; do
             # ==========================================
             case "$TEXT" in
                 "/start"|"/menu")
+                    # [v3.4.0 核心] 抓取云端最新版本
+                    REMOTE_VER=$(curl -s -m 2 "${REPO_RAW_URL}/version.txt" | tr -d '[:space:]')
+                    VER_INFO="当前版本: \`v${MASTER_VERSION}\`"
+                    
+                    if [ -n "$REMOTE_VER" ] && [ "$REMOTE_VER" != "$MASTER_VERSION" ]; then
+                        VER_INFO="${VER_INFO}\n✨ **发现新版本**: \`v${REMOTE_VER}\` (请尽快更新主控)"
+                    fi
+
                     BTNS="[[{\"text\":\"🖥️ 我的节点列表\",\"callback_data\":\"list_nodes\"}], [{\"text\":\"🚀 全节点日报汇总\",\"callback_data\":\"all_reports\"}], [{\"text\":\"🛠️ 全节点一键维护\",\"callback_data\":\"all_run\"}]]"
-                    send_ui "$CHAT_ID" "🛡️ **IP-Sentinel 司令部**\n欢迎回来，长官。请下达指令：" "$BTNS"
+                    send_ui "$CHAT_ID" "🛡️ **IP-Sentinel 司令部**\n${VER_INFO}\n\n欢迎回来，长官。请下达指令：" "$BTNS"
                     ;;
 
                 "all_reports")
