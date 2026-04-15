@@ -21,15 +21,17 @@ HEADERS = {
 }
 
 def get_active_regions():
-    """动态提取 map.json 中的战区 (修正：精准穿透 JSON 数组结构)"""
+    """动态提取 map.json 中的战区 (适配 v3.5.0 大洲战区降维架构)"""
     try:
         with open(MAP_JSON_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            # 穿透到 countries 列表，提取所有的国家代码 (id)
             regions = []
-            for country in data.get('countries', []):
-                if 'id' in country:
-                    regions.append(country['id'])
+            # 第一层穿透：遍历所有大洲战区 (continents)
+            for continent in data.get('continents', []):
+                # 第二层穿透：遍历大洲下的所有国家 (countries)
+                for country in continent.get('countries', []):
+                    if 'id' in country:
+                        regions.append(country['id'])
             return regions
     except Exception as e:
         print(f"❌ [读取地图失败]: {e}")
