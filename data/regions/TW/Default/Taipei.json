@@ -1,0 +1,20 @@
+{
+  "region_name": "Taiwan - Taipei",
+  "google_module": {
+    "base_lat": 25.0330,
+    "base_lon": 121.5654,
+    "lang_params": "hl=zh-TW&gl=TW",
+    "valid_url_suffix": "com.tw"
+  },
+  "trust_module": {
+    "white_urls": [
+      "https://zh.wikipedia.org/wiki/Special:Random",
+      "https://tw.yahoo.com/",
+      "https://www.pchome.com.tw/",
+      "https://www.momoshop.com.tw/",
+      "https://www.ruten.com.tw/",
+      "https://www.mobile01.com/",
+      "https://www.dcard.tw/"
+    ]
+  }
+}
