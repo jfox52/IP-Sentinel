@@ -1,0 +1,20 @@
+{
+  "region_name": "Turkey - Istanbul",
+  "google_module": {
+    "base_lat": 41.0082,
+    "base_lon": 28.9784,
+    "lang_params": "hl=tr&gl=TR",
+    "valid_url_suffix": "com.tr"
+  },
+  "trust_module": {
+    "white_urls": [
+      "https://www.google.com.tr/",
+      "https://www.trendyol.com/",
+      "https://www.hepsiburada.com/",
+      "https://www.hurriyet.com.tr/",
+      "https://www.sabah.com.tr/",
+      "https://tr.wikipedia.org/wiki/Special:Random",
+      "https://www.amazon.com.tr/"
+    ]
+  }
+}
