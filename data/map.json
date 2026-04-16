@@ -85,6 +85,14 @@
           ]
         },
         {
+          "id": "TR",
+          "name": "Turkey (土耳其)",
+          "keyword_file": "kw_TR.txt",
+          "states": [
+            { "id": "Default", "name": "Default State", "cities": [ { "id": "Istanbul", "name": "Istanbul (伊斯坦布尔)" } ] }
+          ]
+        },
+        {
           "id": "ES",
           "name": "Spain (西班牙)",
           "keyword_file": "kw_ES.txt",
