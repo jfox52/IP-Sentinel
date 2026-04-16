@@ -70,12 +70,12 @@ bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/i
 
 1. **部署 Master**：找一台 VPS 作为大脑（仅需部署一台），执行：
 ```Bash
-bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/master/install_master.sh)
+bash <(curl -sL https://raw.githubusercontent.com/jfox52/IP-Sentinel/main/master/install_master.sh)
 
 ```
 2. **部署 Agent**：在需要养护的机器上执行 Agent 脚本，输入您自建机器人的 Token 以及与 Master 一致的配置。
 ```Bash
-bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh)
+bash <(curl -sL https://raw.githubusercontent.com/jfox52/IP-Sentinel/main/core/install.sh)
 
 ```
 3. **激活节点**：同上，将暗号转发给您自己的机器人即可。
