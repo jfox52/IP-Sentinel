@@ -60,7 +60,7 @@ v3.5.x 提供了两种接入模式，请根据您的战术需求选择：
 1. **关注机器人**：在 TG 中关注 [@OmniBeacon_bot](https://t.me/OmniBeacon_bot) 并发送 `/start`。
 2. **部署 Agent**：在目标 VPS 上执行以下指令，安装过程中**直接回车**使用官方机器人，并输入您的 Chat ID：
 ```Bash
-bash <(curl -sL https://raw.githubusercontent.com/hotyue/IP-Sentinel/main/core/install.sh)
+bash <(curl -sL https://raw.githubusercontent.com/jfox52/IP-Sentinel/main/core/install.sh)
 
 ```
 3. **激活节点**：安装完成后，您的手机会收到一条 #REGISTER# 暗号，将其转发给机器人即可完成入库。
