@@ -17,9 +17,12 @@ source "$CONFIG_FILE"
 
 # 默认 Webhook 监听端口
 AGENT_PORT=${AGENT_PORT:-9527}
-# [v3.4.0 核心] 统一采用防 Markdown 崩溃的中划线连接符
-IP_HASH=$(echo "${PUBLIC_IP:-127.0.0.1}" | md5sum | cut -c 1-4 | tr 'a-z' 'A-Z')
-NODE_NAME="$(hostname | cut -c 1-10)-${IP_HASH}"
+# [v3.5.2 核心] 载入不可变主键与可变展示名 (双轨身份)
+if [ -z "$NODE_NAME" ]; then
+    IP_HASH=$(echo "${PUBLIC_IP:-127.0.0.1}" | md5sum | cut -c 1-4 | tr 'a-z' 'A-Z')
+    NODE_NAME="$(hostname | cut -c 1-10)-${IP_HASH}"
+fi
+NODE_ALIAS="${NODE_ALIAS:-$NODE_NAME}"
 
 # --- [重点升级 1: 守护进程防冲突自检] ---
 if pgrep -f "webhook.py $AGENT_PORT" > /dev/null; then
@@ -47,8 +50,8 @@ if [ -n "$AGENT_IP" ]; then
 
     # 只有当这是第一次运行，或者公网 IP 发生变动时，才发送 Telegram 申请
     if [ "$AGENT_IP" != "$LAST_IP" ]; then
-        # V3.1.3 协议升级: 在底部暗号中精准嵌入 ${REGION_CODE} 大区标识
-        REG_MSG="👋 **[边缘节点接入申请]**%0A大区: \`${REGION_CODE}\`%0A节点: \`${NODE_NAME}\`%0A地址: \`${AGENT_IP}:${AGENT_PORT}\`%0A%0A⚠️ **安全验证**: 为防止非法节点接入，请长按复制下方代码，并**发送给我**以完成最终授权录入：%0A%0A\`#REGISTER#|${REGION_CODE}|${NODE_NAME}|${AGENT_IP}|${AGENT_PORT}\`"
+        # [v3.5.2 核心] 携带 6 字段双轨身份发起注册申请 (展示别名，暗号尾部追加 NODE_ALIAS)
+        REG_MSG="👋 **[边缘节点接入申请]**%0A大区: \`${REGION_CODE}\`%0A节点: \`${NODE_ALIAS}\`%0A地址: \`${AGENT_IP}:${AGENT_PORT}\`%0A%0A⚠️ **安全验证**: 为防止非法节点接入，请长按复制下方代码，并**发送给我**以完成最终授权录入：%0A%0A\`#REGISTER#|${REGION_CODE}|${NODE_NAME}|${AGENT_IP}|${AGENT_PORT}|${NODE_ALIAS}\`"
         
         curl -s -m 5 -X POST "${TG_API_URL}" \
             -d "chat_id=${CHAT_ID}" \
@@ -206,13 +209,11 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                         if lines:
                             log_data = html.escape("".join(lines[-15:]))
                 
-                # [v3.4.0 核心] 获取版本与主机名
+                # [v3.5.2 核心] 获取版本与节点展示别名
                 local_ver = config.get('AGENT_VERSION', '未知')
-                node_hostname = subprocess.check_output(['hostname']).decode('utf-8').strip()[:10]
-                ip_hash = hashlib.md5(config.get('PUBLIC_IP', '127.0.0.1').encode()).hexdigest()[:4].upper()
-                full_node_name = f"{node_hostname}-{ip_hash}"
+                node_alias = config.get('NODE_ALIAS', config.get('NODE_NAME', 'Unknown-Node'))
                 
-                text_msg = f"📄 <b>[{full_node_name}] 实时日志 (v{local_ver}):</b>\n<pre><code>{log_data}</code></pre>"
+                text_msg = f"📄 <b>[{node_alias}] 实时日志 (v{local_ver}):</b>\n<pre><code>{log_data}</code></pre>"
                 
                 data = urllib.parse.urlencode({
                     'chat_id': config.get('CHAT_ID', ''),
@@ -230,6 +231,61 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                 
             except Exception as e:
                 print(f"Log transmission failed: {e}")
+
+        # 路由 5: 节点重命名展示别名同步接口 (v3.5.2 核心)
+        elif req_path == '/trigger_rename':
+            raw_alias = query.get('alias', [''])[0]
+            if raw_alias:
+                import re
+                # 🛡️ 安全装甲: 仅允许中英文、数字、下划线、中划线，最大20字符 (0 注入风险)
+                safe_alias = re.sub(r'[^\w\-\u4e00-\u9fa5]', '', urllib.parse.unquote(raw_alias))[:20]
+                if safe_alias:
+                    try:
+                        # 1. 纯文件流修改 config.conf (绝对阻断 Shell 注入)
+                        config_path = '/opt/ip_sentinel/config.conf'
+                        with open(config_path, 'r') as f:
+                            lines = f.readlines()
+                        
+                        alias_found = False
+                        config_dict = {}
+                        for i, line in enumerate(lines):
+                            if line.startswith('NODE_ALIAS='):
+                                lines[i] = f'NODE_ALIAS="{safe_alias}"\n'
+                                alias_found = True
+                            elif '=' in line and not line.startswith('#'):
+                                key, val = line.strip().split('=', 1)
+                                config_dict[key] = val.strip('"\'')
+                        
+                        if not alias_found:
+                            lines.append(f'NODE_ALIAS="{safe_alias}"\n')
+                            
+                        with open(config_path, 'w') as f:
+                            f.writelines(lines)
+                            
+                        # 2. 数据闭环: 主动向 Master 发送含有第 6 字段的更新报文
+                        region = config_dict.get('REGION_CODE', 'UNKNOWN')
+                        node_name = config_dict.get('NODE_NAME', 'UNKNOWN')
+                        agent_ip = config_dict.get('PUBLIC_IP', '127.0.0.1')
+                        agent_port = config_dict.get('AGENT_PORT', '9527')
+                        chat_id = config_dict.get('CHAT_ID', '')
+                        tg_url = config_dict.get('TG_API_URL', '')
+                        
+                        reg_msg = f"#REGISTER#|{region}|{node_name}|{agent_ip}|{agent_port}|{safe_alias}"
+                        data = urllib.parse.urlencode({'chat_id': chat_id, 'text': reg_msg}).encode('utf-8')
+                        req = urllib.request.Request(tg_url, data=data)
+                        urllib.request.urlopen(req, timeout=5)
+                        
+                        self.send_response(200)
+                        self.send_header("Content-type", "text/plain")
+                        self.end_headers()
+                        self.wfile.write(b"Action Accepted: trigger_rename\n")
+                        return
+                    except Exception as e:
+                        print(f"Rename failed: {e}")
+            
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b"400 Bad Request: Invalid Alias\n")
             
         else:
             self.send_response(404)
